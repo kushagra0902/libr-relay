@@ -25,7 +25,6 @@ import (
 
 	"net/http"
 
-	"github.com/joho/godotenv"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -35,14 +34,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	relay "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
+	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
-	 libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 )
 
 
-var sheetWebAppURL string
+
 
 type RelayDist struct {
 	relayID string
@@ -92,19 +91,19 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 	mu.Unlock()
 }
 
-
+const sheetWebAppURL = "https://script.google.com/macros/s/AKfycbzQSQ1rKykcp-HVC0qEO4-C8GhEtKVZ3S5u2iR91-nZR9jOOWkvhb7K73QSmDmjSdmN/exec"
 func main() {
-	fmt.Println("123")
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
+	// fmt.Println("123")
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatalf("Error loading .env file")
+	// }
 
-	// Fetch values
+	// // Fetch values
 
-	sheetURL := os.Getenv("sheetWebAppURL")
-	//fmt.Println(sheetURL)
-	sheetWebAppURL = sheetURL
+	// sheetURL := os.Getenv("sheetWebAppURL")
+	// //fmt.Println(sheetURL)
+	// sheetWebAppURL = sheetURL
 
 	// Create connection manager
 	fmt.Println("[DEBUG] Creating connection manager...")
