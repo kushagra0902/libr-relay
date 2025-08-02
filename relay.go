@@ -94,6 +94,7 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 
 func main() {
+	fmt.Println("123")
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file")
