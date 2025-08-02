@@ -122,7 +122,7 @@ func main() {
 	RelayHost, err = libp2p.New(
 	libp2p.Identity(privKey),
 	
-    libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/4567/ws"), // Changed from /tcp/4567
+    libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/443/ws"), // Changed from /tcp/4567 ?
 	libp2p.Security(libp2ptls.ID, libp2ptls.New),
     libp2p.ConnectionManager(connMgr),
     libp2p.EnableNATService(),
