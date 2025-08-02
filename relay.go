@@ -134,7 +134,7 @@ func main() {
 		log.Fatalf("[ERROR] Failed to create relay host: %v", err)
 	}
 	RelayHost.Network().Notify(&RelayEvents{})
-	relayMultiaddrFull := fmt.Sprintf("/dns4/0.tcp.in.ngrok.io/tcp/%s/p2p/%s", "port_number", RelayHost.ID().String())
+	relayMultiaddrFull := fmt.Sprintf("dns4/libr-relay.onrender.com/tcp/443/wss/p2p/%s",RelayHost.ID().String())
 
 	defer func() {
 		fmt.Println("[DEBUG] Closing relay host...")

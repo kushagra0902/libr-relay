@@ -3,7 +3,6 @@ module relay
 go 1.24.4
 
 require (
-	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.42.1
 	github.com/multiformats/go-multiaddr v0.16.0
 )
