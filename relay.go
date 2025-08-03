@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
-	"io/ioutil"
 	"math/big"
 	"sort"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	//Peers "chatprotocol/peer"
 
 	"context"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -183,6 +183,22 @@ func main() {
 	}()
 
 	// Wait for interrupt signal
+	go func() {
+		http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("running"))
+			} else {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+			}
+		})
+
+		// Listen on port 8080 or the port Render maps externally
+		if err := http.ListenAndServe(":8080", nil); err != nil {
+			log.Fatalf("[ERROR] Failed to start health check server: %v", err)
+		}
+	}()
+	
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -464,7 +480,11 @@ func handleChatStream(s network.Stream) {
 }
 
 func GetRelayAddr (peerIP string) string{
-	var RelayMultiAddrList = fetchRelayAddrsFromSheet()
+	RelayMultiAddrList, err := fetchRelayAddrsFromSheet()
+
+	if err != nil {
+		fmt.Println("[DEBUG]Error getting addr from the sheet")
+	}
 	var relayList []string
 	for _, multiaddr := range RelayMultiAddrList{
 		parts := strings.Split(multiaddr, "/")
@@ -553,28 +573,28 @@ func uploadRelayAddrToSheet(myAddr string) {
 	fmt.Println("[INFO] Uploaded relay address to sheet successfully")
 }
 
-func fetchRelayAddrsFromSheet() []string {
-	resp, err := http.Get(sheetWebAppURL)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to fetch relay addresses: %v\n", err)
-		return nil
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to read response: %v\n", err)
-		return nil
-	}
+// func fetchRelayAddrsFromSheet() []string {
+// 	resp, err := http.Get(sheetWebAppURL)
+// 	if err != nil {
+// 		fmt.Printf("[ERROR] Failed to fetch relay addresses: %v\n", err)
+// 		return nil
+// 	}
+// 	defer resp.Body.Close()
+// 	body, err := ioutil.ReadAll(resp.Body)
+// 	if err != nil {
+// 		fmt.Printf("[ERROR] Failed to read response: %v\n", err)
+// 		return nil
+// 	}
 
-	var addrs []string
-	err = json.Unmarshal(body, &addrs)
-	if err != nil {
-		fmt.Printf("[ERROR] Failed to parse address list: %v\n", err)
-		return nil
-	}
-	fmt.Println("[INFO] Relay address list fetched from sheet")
-	return addrs
-}
+// 	var addrs []string
+// 	err = json.Unmarshal(body, &addrs)
+// 	if err != nil {
+// 		fmt.Printf("[ERROR] Failed to parse address list: %v\n", err)
+// 		return nil
+// 	}
+// 	fmt.Println("[INFO] Relay address list fetched from sheet")
+// 	return addrs
+// }
 
 func deleteRelayAddrFromSheet(myAddr string) {
 	reqBody := strings.NewReader(`{"delete":"` + myAddr + `"}`)
@@ -595,4 +615,46 @@ func deleteRelayAddrFromSheet(myAddr string) {
 	defer resp.Body.Close()
 
 	fmt.Println("[INFO] Deleted relay address from sheet successfully")
+}
+
+func fetchRelayAddrsFromSheet() ([]string, error) {
+    csvURL := "https://raw.githubusercontent.com/cherry-aggarwal/LIBR/refs/heads/integration/docs/network.csv"
+    resp, err := http.Get(csvURL)
+    if err != nil {
+        return nil, fmt.Errorf("failed to fetch CSV: %w", err)
+    }
+    defer resp.Body.Close()
+
+    reader := csv.NewReader(resp.Body)
+
+    // Skip header
+    if _, err := reader.Read(); err != nil {
+        return nil, fmt.Errorf("failed to read header: %w", err)
+    }
+
+    var relayAddrs []string
+
+    for {
+        row, err := reader.Read()
+        if err != nil {
+            if err.Error() == "EOF" {
+                break
+            }
+            log.Printf("skipping bad row: %v", err)
+            continue
+        }
+
+        if len(row) < 1 {
+            log.Printf("skipping row with too few columns: %v", row)
+            continue
+        }
+
+        relayAddrs = append(relayAddrs, row[0])
+    }
+
+    if len(relayAddrs) == 0 {
+        return nil, fmt.Errorf("no valid address found")
+    }
+
+    return relayAddrs, nil
 }
