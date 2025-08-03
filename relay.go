@@ -184,9 +184,9 @@ func main() {
 
 	// Wait for interrupt signal
 	go func() {
-		fmt.Println("ENTERING GO ROUTINE FOR SERVER")
+		log.Println("ENTERING GO ROUTINE FOR SERVER")
 		check := func(w http.ResponseWriter, r *http.Request) {
-			fmt.Println("[DEBUG]Starting HTTP server")
+			log.Println("[DEBUG]Starting HTTP server")
 			if r.Method == http.MethodGet {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("running"))
