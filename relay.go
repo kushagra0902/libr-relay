@@ -184,8 +184,8 @@ func main() {
 
 	// Wait for interrupt signal
 	go func() {
-		http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-
+		fmt.Println("ENTERING GO ROUTINE FOR SERVER")
+		check := func(w http.ResponseWriter, r *http.Request) {
 			fmt.Println("[DEBUG]Starting HTTP server")
 			if r.Method == http.MethodGet {
 				w.WriteHeader(http.StatusOK)
@@ -193,9 +193,10 @@ func main() {
 			} else {
 				w.WriteHeader(http.StatusMethodNotAllowed)
 			}
-		})
+		}
 
 		// Listen on port 8080 or the port Render maps externally
+		http.HandleFunc("/check", check)
 		if err := http.ListenAndServe(":8080", nil); err != nil {
 			log.Fatalf("[ERROR] Failed to start health check server: %v", err)
 		}
