@@ -185,6 +185,8 @@ func main() {
 	// Wait for interrupt signal
 	go func() {
 		http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
+
+			fmt.Println("[DEBUG]Starting HTTP server")
 			if r.Method == http.MethodGet {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte("running"))
@@ -198,7 +200,7 @@ func main() {
 			log.Fatalf("[ERROR] Failed to start health check server: %v", err)
 		}
 	}()
-	
+
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
