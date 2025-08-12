@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"sync"
 
 	//Peers "chatprotocol/peer"
 
@@ -20,7 +21,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -52,14 +52,20 @@ const ChatProtocol = protocol.ID("/chat/1.0.0")
 
 type reqFormat struct {
 	Type      string          `json:"type,omitempty"`
-	PubIP     string          `json:"pubip,omitempty"`
+	//PubIP     string          `json:"pubip,omitempty"`
+	PeerID    string			`json:"peerid"`
 	ReqParams json.RawMessage `json:"reqparams,omitempty"`
 	Body      json.RawMessage `json:"body,omitempty"`
 }
 
+// var (
+// 	IDmap = make(map[string]string)
+// 	mu    sync.RWMutex
+// )
+
 var (
-	IDmap = make(map[string]string)
-	mu    sync.RWMutex
+	ConnectedPeers []string 
+	mu sync.RWMutex
 )
 
 var RelayHost host.Host
@@ -80,11 +86,14 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 	fmt.Printf("[INFO] Peer disconnected: %s\n", conn.RemotePeer())
 	// Remove peer from IDmap if needed
 	mu.Lock()
-	for pubip, pid := range IDmap {
-		if pid == conn.RemotePeer().String() {
-			delete(IDmap, pubip)
-			break
-		}
+	// for pubip, pid := range IDmap {
+	// 	if pid == conn.RemotePeer().String() {
+	// 		delete(IDmap, pubip)
+	// 		break
+	// 	}
+	// }
+	if contains(ConnectedPeers,conn.RemotePeer().String()){
+		remove(ConnectedPeers, conn.RemotePeer().String())
 	}
 	mu.Unlock()
 }
@@ -176,7 +185,7 @@ func main() {
 	RelayHost.SetStreamHandler("/chat/1.0.0", handleChatStream)
 	go func() {
 		for {
-			fmt.Println(IDmap)
+			fmt.Println(ConnectedPeers)
 			time.Sleep(30 * time.Second)
 		}
 	}()
@@ -220,6 +229,17 @@ func main() {
 	fmt.Println("[INFO] Shutting down relay...")
 }
 
+func remove(slice []string, val string) []string {
+    for i, item := range slice {
+        if item == val {
+            // Remove element at index i
+            return append(slice[:i], slice[i+1:]...)
+        }
+    }
+    // If not found, return original slice
+    return slice
+}
+
 func PingTargets(addresses []string, interval time.Duration) {
 	go func() {
 		for {
@@ -259,6 +279,15 @@ func PingTargets(addresses []string, interval time.Duration) {
 	}()
 }
 
+func contains(arr []string, target string) bool {
+	for _, vals := range arr {
+		if vals == target {
+			return true
+		}
+	}
+	return false
+}
+
 func handleChatStream(s network.Stream) {
 	fmt.Println("[DEBUG] Incoming chat stream from", s.Conn().RemoteMultiaddr())
 	defer s.Close()
@@ -285,25 +314,42 @@ func handleChatStream(s network.Stream) {
 
 		if req.Type == "register" {
 			peerID := s.Conn().RemotePeer()
-			fmt.Printf("[INFO]Given public IP is %s \n", req.PubIP)
-			fmt.Println("[INFO]Registering the peer into relay map")
+			peerID2 := req.PeerID
+
+			if(peerID2 != peerID.String()){
+				fmt.Println("PEER ID MISMATCH")
+				return 
+			}
+
+
+			fmt.Printf("[INFO]Given peerID is %s \n", req.PeerID)
+			fmt.Println("[INFO]Registering the peer into relay")
 			mu.Lock()
-			IDmap[req.PubIP] = peerID.String()
+			//IDmap[req.PubIP] = peerID.String()
+			ConnectedPeers = append(ConnectedPeers, peerID.String())
 			mu.Unlock()
 		}
 
 		if req.Type == "SendMsg" {
 			mu.RLock()
-			targetPeerID := IDmap[req.PubIP]
+			var targetPeerID string
+
+			if contains(ConnectedPeers, req.PeerID) {
+				targetPeerID = req.PeerID
+			}
 			mu.RUnlock()
+
+			// checks if the target peer is connected to the relay or some other relay
+			// have to handle some logic here but later
+
 			if targetPeerID == "" {
 				fmt.Println("[DEBUG]This peer is not on this relay, contacting other relay")
-				targetRelayAddr := GetRelayAddr(req.PubIP)
+				targetRelayAddr := GetRelayAddr(req.PeerID)
 
 				var forwardReq reqFormat
 				forwardReq.Body = req.Body
 				forwardReq.ReqParams = req.ReqParams
-				forwardReq.PubIP = req.PubIP
+				forwardReq.PeerID = req.PeerID
 				forwardReq.Type = "forward"
 
 				relayMA, err := ma.NewMultiaddr(targetRelayAddr)
@@ -370,15 +416,20 @@ func handleChatStream(s network.Stream) {
 					fmt.Println("[FATAL] RelayHost is nil!")
 					return
 				}
+
 				relayID := RelayHost.ID()
+
 				fmt.Println("1")
 				targetID, err := peer.Decode(targetPeerID)
 				fmt.Println("2")
+
+
 				if err != nil {
 					log.Printf("[ERROR] Invalid Peer ID: %v", err)
 					s.Write([]byte("invalid peer id"))
 					return
 				}
+
 
 				relayBaseAddr, err := ma.NewMultiaddr("/p2p/" + relayID.String())
 				if err != nil {
@@ -448,7 +499,11 @@ func handleChatStream(s network.Stream) {
 
 		if req.Type == "forward" {
 			mu.RLock()
-			targetPeerID := IDmap[req.PubIP]
+			var targetPeerID string
+			if(contains(ConnectedPeers, req.PeerID)){
+
+				targetPeerID = req.PeerID
+			}
 			mu.RUnlock()
 
 			if targetPeerID == "" {
@@ -498,7 +553,7 @@ func handleChatStream(s network.Stream) {
 			_, err = sendStream.Write(append(jsonReqServer, '\n'))
 
 			if err != nil {
-				fmt.Println("[DEBUG]Error sending messgae despite stream opened")
+				fmt.Println("[DEBUG]Error sending message despite stream opened")
 				return
 			}
 			//s.Write([]byte("Success\n"))
@@ -528,7 +583,7 @@ func handleChatStream(s network.Stream) {
 	}
 }
 
-func GetRelayAddr(peerIP string) string {
+func GetRelayAddr(peerID string) string {
 	RelayMultiAddrList, err := fetchRelayAddrsFromSheet()
 
 	if err != nil {
@@ -543,7 +598,7 @@ func GetRelayAddr(peerIP string) string {
 	var distmap []RelayDist
 
 	h1 := sha256.New() // Use sha256.New() for SHA-256
-	h1.Write([]byte(peerIP))
+	h1.Write([]byte(peerID))
 	peerIDhash := hex.EncodeToString(h1.Sum(nil))
 
 	for _, relay := range relayList {
