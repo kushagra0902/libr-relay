@@ -27,7 +27,7 @@ import (
 
 	"net/http"
 
-	"github.com/joho/godotenv"
+	//"github.com/joho/godotenv"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -112,8 +112,9 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 // const sheetWebAppURL = "https://script.google.com/macros/s/AKfycbzQSQ1rKykcp-HVC0qEO4-C8GhEtKVZ3S5u2iR91-nZR9jOOWkvhb7K73QSmDmjSdmN/exec"
 
+const MONGO_URI="mongodb+srv://lemongrass8923:lmao1234@cluster0.vswojqe.mongodb.net"
 func main() {
-	// fmt.Println("123")
+	fmt.Println("123")
 	// err := godotenv.Load()
 	// if err != nil {
 	// 	log.Fatalf("Error loading .env file")
@@ -127,18 +128,18 @@ func main() {
 
 	// Create connection manager
 
-	err:=godotenv.Load()
+	// err:=godotenv.Load()
 
-	if err!=nil{
-		fmt.Println("[DEBUG]Cannot load env file")
-		return
-	}
+	// if err!=nil{
+	// 	fmt.Println("[DEBUG]Cannot load env file")
+	// 	return
+	// }
 
-	mongo_uri := os.Getenv("MONGO_URI")
-	fmt.Println(mongo_uri)
+	// mongo_uri := os.Getenv("MONGO_URI")
+	// // fmt.Println(mongo_uri)
 
 
-	err = SetupMongo(mongo_uri)
+	err := SetupMongo(MONGO_URI)
 
 	if err!=nil{
 		fmt.Println("[DEBUG]Error connecting to MongoDB")
