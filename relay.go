@@ -471,7 +471,7 @@ func handleChatStream(s network.Stream) {
 					fmt.Println("[DEBUG]Error sending messgae despite stream opened")
 					return
 				}
-				s.Write([]byte("Success\n"))
+				//s.Write([]byte("Success\n"))
 
 				buf := make([]byte, 1024)
 				RespReader := bufio.NewReader(sendStream)
