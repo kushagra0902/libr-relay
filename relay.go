@@ -110,9 +110,6 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 	mu.Unlock()
 }
 
-// const sheetWebAppURL = "https://script.google.com/macros/s/AKfycbzQSQ1rKykcp-HVC0qEO4-C8GhEtKVZ3S5u2iR91-nZR9jOOWkvhb7K73QSmDmjSdmN/exec"
-
-const MONGO_URI="mongodb+srv://lemongrass8923:lmao1234@cluster0.vswojqe.mongodb.net"
 func main() {
 	fmt.Println("123")
 	// err := godotenv.Load()
@@ -135,11 +132,11 @@ func main() {
 	// 	return
 	// }
 
-	// mongo_uri := os.Getenv("MONGO_URI")
-	// // fmt.Println(mongo_uri)
+	mongo_uri := os.Getenv("MONGO_URI")
+	// fmt.Println(mongo_uri)
 
 
-	err := SetupMongo(MONGO_URI)
+	err := SetupMongo(mongo_uri)
 
 	if err!=nil{
 		fmt.Println("[DEBUG]Error connecting to MongoDB")
@@ -620,7 +617,7 @@ func GetRelayAddr(peerID string) string {
 	RelayMultiAddrList, err := GetRelayAddrFromMongo()
 
 	if err != nil {
-		fmt.Println("[DEBUG]Error getting addr from the sheet")
+		fmt.Println("[DEBUG]Error getting from mongo")
 	}
 	var relayList []string
 	for _, multiaddr := range RelayMultiAddrList {
