@@ -160,7 +160,7 @@ func main() {
 		ReservationTTL:         time.Hour,
 		MaxReservations:        1000,
 		MaxCircuits:            64,
-		BufferSize:             4096,
+		BufferSize:             64*1024,
 		MaxReservationsPerPeer: 10,
 		MaxReservationsPerIP:   400, 
 		MaxReservationsPerASN:  64,
@@ -268,7 +268,7 @@ func handleChatStream(s network.Stream) {
 	for {
 
 		var req reqFormat
-		buf := make([]byte, 1024*4) // or size based on expected message
+		buf := make([]byte, 1024*64) // or size based on expected message
 		n, err := reader.Read(buf)
 		if err != nil {
 			fmt.Println("[DEBUG] Error reading from connection at relay:", err)
@@ -370,7 +370,7 @@ func handleChatStream(s network.Stream) {
 					return
 				}
 
-				buf := make([]byte, 4096)
+				buf := make([]byte, 64*1024)
 				respReader := bufio.NewReader(forwardStream)
 				_, err = respReader.Read(buf)
 				buf = bytes.TrimRight(buf, "\x00")
@@ -454,7 +454,7 @@ func handleChatStream(s network.Stream) {
 				}
 				//s.Write([]byte("Success\n"))
 
-				buf := make([]byte, 1024)
+				buf := make([]byte, 64*1024)
 				RespReader := bufio.NewReader(sendStream)
 				RespReader.Read(buf)
 				buf = bytes.TrimRight(buf, "\x00")
@@ -539,7 +539,7 @@ func handleChatStream(s network.Stream) {
 			}
 			//s.Write([]byte("Success\n"))
 
-			buf := make([]byte, 1024)
+			buf := make([]byte, 64*1024)
 			RespReader := bufio.NewReader(sendStream)
 			RespReader.Read(buf)
 			buf = bytes.TrimRight(buf, "\x00")
