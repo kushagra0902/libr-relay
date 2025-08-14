@@ -89,6 +89,8 @@ type respFormat struct {
 
 type RelayEvents struct{}
 
+var OwnRelayAddrFull string
+
 func (re *RelayEvents) Listen(net network.Network, addr ma.Multiaddr)      {}
 func (re *RelayEvents) ListenClose(net network.Network, addr ma.Multiaddr) {}
 func (re *RelayEvents) Connected(net network.Network, conn network.Conn) {
@@ -111,30 +113,10 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 }
 
 func main() {
-	fmt.Println("123")
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatalf("Error loading .env file")
-	// }
-
-	// // Fetch values
-
-	// sheetURL := os.Getenv("sheetWebAppURL")
-	// //fmt.Println(sheetURL)
-	// sheetWebAppURL = sheetURL
-
-	// Create connection manager
-
-	// err:=godotenv.Load()
-
-	// if err!=nil{
-	// 	fmt.Println("[DEBUG]Cannot load env file")
-	// 	return
-	// }
+	fmt.Println("STARTING RELAY CODE")
 
 	mongo_uri := os.Getenv("MONGO_URI")
 	// fmt.Println(mongo_uri)
-
 
 	err := SetupMongo(mongo_uri)
 
@@ -142,6 +124,7 @@ func main() {
 		fmt.Println("[DEBUG]Error connecting to MongoDB")
 		return
 	}
+
 	fmt.Println("[DEBUG] Creating connection manager...")
 	connMgr, err := connmgr.NewConnManager(100, 400)
 	if err != nil {
@@ -158,13 +141,13 @@ func main() {
 	RelayHost, err = libp2p.New(
 		libp2p.Identity(privKey),
 
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/443/ws"), // Changed from /tcp/4567 ?
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/443/ws"),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.ConnectionManager(connMgr),
 		libp2p.EnableNATService(),
 		libp2p.EnableRelayService(),
 		libp2p.Transport(tcp.NewTCPTransport),
-		libp2p.Transport(websocket.New), // Add the websocket transport
+		libp2p.Transport(websocket.New), 
 	)
 	if err != nil {
 		log.Fatalf("[ERROR] Failed to create relay host: %v", err)
@@ -172,26 +155,19 @@ func main() {
 	RelayHost.Network().Notify(&RelayEvents{})
 
 
-	//relayMultiaddrFull := fmt.Sprintf("/dns4/libr-relay.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
-
-	// defer func() {
-	// 	fmt.Println("[DEBUG] Closing relay host...")
-	// 	deleteRelayAddrFromSheet(relayMultiaddrFull)
-	// 	RelayHost.Close()
-	// }()
-
+	OwnRelayAddrFull = fmt.Sprintf("/dns4/libr-relay.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
 
 	customRelayResources := relay.Resources{
 		Limit: &relay.RelayLimit{
 			Duration: 30 * time.Minute,
-			Data:     1 << 20, // 1MB data limit per stream
+			Data:     1 << 20, 
 		},
 		ReservationTTL:         time.Hour,
-		MaxReservations:        512,
+		MaxReservations:        1000,
 		MaxCircuits:            64,
 		BufferSize:             4096,
 		MaxReservationsPerPeer: 10,
-		MaxReservationsPerIP:   100, // Increased from the default of 8
+		MaxReservationsPerIP:   400, 
 		MaxReservationsPerASN:  64,
 	}
 
@@ -210,7 +186,7 @@ func main() {
 		fmt.Printf("[INFO] Relay Address: %s/p2p/%s\n", addr, RelayHost.ID())
 	}
 
-	//relayMultiaddrFull :=  fmt.Sprintf("/dns4/0.tcp.in.ngrok.io/tcp/%s/p2p/%s","port_number", RelayHost.ID().String())
+	//OwnRelayAddrFull =  fmt.Sprintf("/dns4/0.tcp.in.ngrok.io/tcp/%s/p2p/%s","port_number", RelayHost.ID().String())
 
 	//go uploadRelayAddrToSheet(relayMultiaddrFull)
 
@@ -221,34 +197,6 @@ func main() {
 			time.Sleep(30 * time.Second)
 		}
 	}()
-
-	// go func() {
-	// 	log.Println("ENTERING GO ROUTINE FOR HEALTH CHECK SERVER")
-
-	// 	check := func(w http.ResponseWriter, r *http.Request) {
-	// 		log.Println("[DEBUG] /check endpoint hit")
-	// 		if r.Method == http.MethodGet {
-	// 			w.WriteHeader(http.StatusOK)
-	// 			w.Write([]byte("running"))
-	// 		} else {
-	// 			w.WriteHeader(http.StatusMethodNotAllowed)
-	// 		}
-	// 	}
-
-	// 	http.HandleFunc("/check", check)
-
-	// 	port := os.Getenv("PORT")
-	// 	if port == "" {
-	// 		port = "8080"
-	// 	}
-
-	// 	addr := fmt.Sprintf(":%s", port)
-	// 	log.Printf("[INFO] Starting health check server on %s", addr)
-
-	// 	if err := http.ListenAndServe(addr, nil); err != nil {
-	// 		log.Fatalf("[ERROR] Failed to start health check server: %v", err)
-	// 	}
-	// }()
 
 	addr, _ := GetRelayAddrFromMongo()
 	go PingTargets(addr, 5*time.Minute)
@@ -375,7 +323,15 @@ func handleChatStream(s network.Stream) {
 			if targetPeerID == "" {
 				fmt.Println("[DEBUG]This peer is not on this relay, contacting other relay")
 				targetRelayAddr := GetRelayAddr(req.PeerID)
-
+				if(targetRelayAddr == ""){
+					fmt.Println("Can't get relay addr from mongoDB")
+					s.Write([]byte("[DEBUG]Can't get Relay addresses from database, retry again"))
+					return
+				}
+				if(targetRelayAddr==OwnRelayAddrFull){
+					s.Write([]byte("[DEBUG]Target Peer not in network"))
+					return
+				}
 				var forwardReq reqFormat
 				forwardReq.Body = req.Body
 				forwardReq.ReqParams = req.ReqParams
@@ -618,6 +574,7 @@ func GetRelayAddr(peerID string) string {
 
 	if err != nil {
 		fmt.Println("[DEBUG]Error getting from mongo")
+		return ""
 	}
 	var relayList []string
 	for _, multiaddr := range RelayMultiAddrList {
@@ -693,155 +650,7 @@ func AddRelayAddrToCSV(myAddr string, path string) error {
 	return err
 }
 
-// func uploadRelayAddrToSheet(myAddr string) {
-// 	payload := strings.NewReader(`{"addr":"` + myAddr + `"}`)
-// 	resp, err := http.Post(sheetWebAppURL, "application/json", payload)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to upload relay address to sheet: %v\n", err)
-// 		return
-// 	}
-// 	defer resp.Body.Close()
-// 	fmt.Println("[INFO] Uploaded relay address to sheet successfully")
-//}
 
-// func fetchRelayAddrsFromSheet() []string {
-// 	resp, err := http.Get(sheetWebAppURL)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to fetch relay addresses: %v\n", err)
-// 		return nil
-// 	}
-// 	defer resp.Body.Close()
-// 	body, err := ioutil.ReadAll(resp.Body)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to read response: %v\n", err)
-// 		return nil
-// 	}
-
-// 	var addrs []string
-// 	err = json.Unmarshal(body, &addrs)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to parse address list: %v\n", err)
-// 		return nil
-// 	}
-// 	fmt.Println("[INFO] Relay address list fetched from sheet")
-// 	return addrs
-// }
-
-
-
-// func deleteRelayAddrFromSheet(myAddr string) {
-// 	reqBody := strings.NewReader(`{"delete":"` + myAddr + `"}`)
-
-// 	client := &http.Client{}
-// 	req, err := http.NewRequest("POST", sheetWebAppURL, reqBody)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to create delete request: %v\n", err)
-// 		return
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
-
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		fmt.Printf("[ERROR] Failed to delete relay address from sheet: %v\n", err)
-// 		return
-// 	}
-// 	defer resp.Body.Close()
-
-// 	fmt.Println("[INFO] Deleted relay address from sheet successfully")
-// }
-
-
-// func fetchRelayAddrsFromSheet() ([]string, error) {
-// 	csvURL := "https://raw.githubusercontent.com/cherry-aggarwal/LIBR/refs/heads/integration/docs/network.csv"
-// 	resp, err := http.Get(csvURL)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to fetch CSV: %w", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	reader := csv.NewReader(resp.Body)
-
-// 	// Skip header
-// 	if _, err := reader.Read(); err != nil {
-// 		return nil, fmt.Errorf("failed to read header: %w", err)
-// 	}
-
-// 	var relayAddrs []string
-
-// 	for {
-// 		row, err := reader.Read()
-// 		if err != nil {
-// 			if err.Error() == "EOF" {
-// 				break
-// 			}
-// 			log.Printf("skipping bad row: %v", err)
-// 			continue
-// 		}
-
-// 		if len(row) < 1 {
-// 			log.Printf("skipping row with too few columns: %v", row)
-// 			continue
-// 		}
-
-// 		relayAddrs = append(relayAddrs, row[0])
-// 	}
-
-// 	if len(relayAddrs) == 0 {
-// 		return nil, fmt.Errorf("no valid address found")
-// 	}
-
-// 	return relayAddrs, nil
-// }
-
-// func fetchRelayAddrsFromSheet() ([]string, error) {
-// 	relayGID := "1789680527"
-// 	rows, err := fetchRawData(relayGID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	var relayList []string
-// 	for _, row := range rows {
-// 		if len(row) >= 1 {
-// 			addr := strings.TrimSpace(row[0])
-// 			// Only include addresses that start with '/'
-// 			if strings.HasPrefix(addr, "/") {
-// 				relayList = append(relayList, addr)
-// 			}
-// 		}
-// 	}
-// 	return relayList, nil
-// }
-
-// func fetchRawData(gid string) ([][]string, error) {
-// 	url := fmt.Sprintf("https://docs.google.com/spreadsheets/d/e/2PACX-1vRDDE0x6LttdW13zLUwodMcVBsqk8fpnUsv-5SIJifZKWRehFpSKuJZawhswGMHSI2fZJDuENQ8SX1v/pub?output=csv&gid=%s", gid)
-
-// 	resp, err := http.Get(url)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		bodyBytes, _ := io.ReadAll(resp.Body)
-// 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
-// 	}
-
-// 	reader := csv.NewReader(resp.Body)
-// 	records, err := reader.ReadAll()
-// 	if err != nil {
-// 		return nil, fmt.Errorf("invalid CSV: %w", err)
-// 	}
-
-// 	if len(records) <= 1 {
-// 		return nil, fmt.Errorf("no data rows in sheet")
-// 	}
-
-// 	return records[1:], nil // :point_left: skip the header row
-//}
-
-
-// SetupMongo initializes the global MongoClient
 func SetupMongo(uri string) error {
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
@@ -861,7 +670,7 @@ func SetupMongo(uri string) error {
 	return nil
 }
 
-// DisconnectMongo gracefully closes the MongoDB connection
+
 func DisconnectMongo() {
 	if cancel != nil {
 		cancel()
