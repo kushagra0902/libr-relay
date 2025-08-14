@@ -157,10 +157,6 @@ func main() {
 	OwnRelayAddrFull = fmt.Sprintf("/dns4/libr-relay.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
 
 	customRelayResources := relay.Resources{
-		Limit: &relay.RelayLimit{
-			Duration: 30 * time.Minute,
-			Data:     1 << 20, 
-		},
 		ReservationTTL:         time.Hour,
 		MaxReservations:        1000,
 		MaxCircuits:            64,
