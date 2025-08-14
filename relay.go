@@ -270,6 +270,7 @@ func handleChatStream(s network.Stream) {
 		var req reqFormat
 		buf := make([]byte, 1024*64) // or size based on expected message
 		n, err := reader.Read(buf)
+		fmt.Println(n)
 		if err != nil {
 			fmt.Println("[DEBUG] Error reading from connection at relay:", err)
 			return
