@@ -58,7 +58,7 @@ const ChatProtocol = protocol.ID("/chat/1.0.0")
 type reqFormat struct {
 	Type      string          `json:"type,omitempty"`
 	//PubIP     string          `json:"pubip,omitempty"`
-	PeerID    string			`json:"peerid"`
+	PeerID    string			`json:"peer_id"`
 	ReqParams json.RawMessage `json:"reqparams,omitempty"`
 	Body      json.RawMessage `json:"body,omitempty"`
 }
