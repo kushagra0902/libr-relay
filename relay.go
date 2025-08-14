@@ -193,7 +193,7 @@ func main() {
 	go func() {
 		for {
 			fmt.Println(ConnectedPeers)
-			time.Sleep(30 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 
@@ -577,6 +577,9 @@ func GetRelayAddr(peerID string) string {
 	}
 	var relayList []string
 	for _, multiaddr := range RelayMultiAddrList {
+		if multiaddr == OwnRelayAddrFull{
+			continue;
+		}
 		parts := strings.Split(multiaddr, "/")
 		relayList = append(relayList, parts[len(parts)-1])
 	}
