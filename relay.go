@@ -116,7 +116,8 @@ func main() {
 	fmt.Println("STARTING RELAY CODE")
 
 	mongo_uri := os.Getenv("MONGO_URI")
-	// fmt.Println(mongo_uri)
+
+	fmt.Println(mongo_uri)
 
 	err := SetupMongo(mongo_uri)
 
