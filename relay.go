@@ -27,7 +27,6 @@ import (
 
 	"net/http"
 
-	//"github.com/joho/godotenv"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -114,10 +113,9 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 func main() {
 	fmt.Println("STARTING RELAY CODE")
-
+	//godotenv.Load()
 	mongo_uri := os.Getenv("MONGO_URI")
-
-	fmt.Println(mongo_uri)
+	// fmt.Println(mongo_uri)
 
 	err := SetupMongo(mongo_uri)
 
@@ -574,7 +572,7 @@ func GetRelayAddr(peerID string) string {
 	RelayMultiAddrList, err := GetRelayAddrFromMongo()
 
 	if err != nil {
-		fmt.Println("[DEBUG]Error getting from mongo")
+		fmt.Println("[DEBUG]Error getting from mongo error : ",err)
 		return ""
 	}
 	var relayList []string
