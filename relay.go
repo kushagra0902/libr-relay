@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"io"
 
 	//"io"
 	"math/big"
@@ -264,25 +263,35 @@ func contains(arr []string, target string) bool {
 func handleChatStream(s network.Stream) {
 	fmt.Println("[DEBUG] Incoming chat stream from", s.Conn().RemoteMultiaddr())
 	defer s.Close()
-	reader := bufio.NewReader(s)
+	//reader := bufio.NewReader(s)
+		decoder := json.NewDecoder(s)
+
 	for {
 
 		var req reqFormat
-		buf := make([]byte, 1024*64) // or size based on expected message
-		n, err := reader.Read(buf)
-		fmt.Println("kuch to hai ye === ", n)
+		err := decoder.Decode(&req)
+		if err != nil {
+			// io.EOF means the other side closed the connection cleanly.
+			if err != io.EOF {
+				fmt.Printf("[DEBUG] Error decoding JSON at relay: %v\n", err)
+			}
+			return // Exit the loop on any error or clean disconnect.
+		}
+		//buf := make([]byte, 1024*64) // or size based on expected message
+		//n, err := reader.Read(buf)
+		//fmt.Println(n)
 		if err != nil {
 			fmt.Println("[DEBUG] Error reading from connection at relay:", err)
 			return
 		}
-		buf = bytes.TrimRight(buf, "\x00")
+		//buf = bytes.TrimRight(buf, "\x00")
 
-		err = json.Unmarshal(buf[:n], &req)
-		if err != nil {
-			fmt.Printf("[DEBUG] Error parsing JSON at relay: %v\n", err)
-			fmt.Printf("[DEBUG] Received Data: %s\n", string(buf[:n]))
-			return
-		}
+		//err = json.Unmarshal(buf[:n], &req)
+		// if err != nil {
+		// 	fmt.Printf("[DEBUG] Error parsing JSON at relay: %v\n", err)
+		// 	fmt.Printf("[DEBUG] Received Data: %s\n", string(buf[:n]))
+		// 	return
+		// }
 
 		fmt.Printf("req by user is : %+v \n", req)
 
@@ -290,11 +299,10 @@ func handleChatStream(s network.Stream) {
 			peerID := s.Conn().RemotePeer()
 			peerID2 := req.PeerID
 
-			if(peerID2 != peerID.String()){
+			if peerID2 != peerID.String() {
 				fmt.Println("PEER ID MISMATCH")
-				return 
+				return
 			}
-
 
 			fmt.Printf("[INFO]Given peerID is %s \n", req.PeerID)
 			fmt.Println("[INFO]Registering the peer into relay")
@@ -319,12 +327,12 @@ func handleChatStream(s network.Stream) {
 			if targetPeerID == "" {
 				fmt.Println("[DEBUG]This peer is not on this relay, contacting other relay")
 				targetRelayAddr := GetRelayAddr(req.PeerID)
-				if(targetRelayAddr == ""){
+				if targetRelayAddr == "" {
 					fmt.Println("Can't get relay addr from mongoDB")
 					s.Write([]byte("[DEBUG]Can't get Relay addresses from database, retry again"))
 					return
 				}
-				if(targetRelayAddr==OwnRelayAddrFull){
+				if targetRelayAddr == OwnRelayAddrFull {
 					s.Write([]byte("[DEBUG]Target Peer not in network"))
 					return
 				}
@@ -359,34 +367,23 @@ func handleChatStream(s network.Stream) {
 				}
 				defer forwardStream.Close()
 
-				jsonForwardReq, err := json.Marshal(forwardReq)
-				if err != nil {
-					fmt.Println("[DEBUG] Failed to marshal forward request:", err)
-					return
-				}
-
-				_, err = forwardStream.Write(append(jsonForwardReq, '\n'))
-				if err != nil {
+				encoder := json.NewEncoder(forwardStream)
+				if err := encoder.Encode(forwardReq); err != nil {
 					fmt.Println("[DEBUG] Failed to write forward request to stream:", err)
 					return
 				}
 
-				buf := make([]byte, 64*1024)
-				respReader := bufio.NewReader(forwardStream)
-				_, err = respReader.Read(buf)
-				buf = bytes.TrimRight(buf, "\x00")
-				var resp respFormat
-				resp.Type = "GET"
-				resp.Resp = buf
-				fmt.Printf("[Debug]Frowarded Resp from relay : %s : %+v \n", TargetRelayInfo.ID.String(), resp)
-
-				if err != nil {
+				// Read the response back using a decoder
+				var respBody json.RawMessage
+				respDecoder := json.NewDecoder(forwardStream)
+				if err := respDecoder.Decode(&respBody); err != nil {
 					fmt.Println("[DEBUG] Error reading response from target relay:", err)
 					return
 				}
 
-				_, err = s.Write(resp.Resp)
-				defer s.Close()
+				fmt.Printf("[Debug]Frowarded Resp from relay : %s : %s \n", TargetRelayInfo.ID.String(), string(respBody))
+
+				_, err = s.Write(respBody)
 				if err != nil {
 					fmt.Println("[DEBUG] Error sending back to original sender:", err)
 					return
@@ -399,21 +396,14 @@ func handleChatStream(s network.Stream) {
 					return
 				}
 
-				relayID := RelayHost.ID()
-
-				fmt.Println("1")
 				targetID, err := peer.Decode(targetPeerID)
-				fmt.Println("2")
-
-
 				if err != nil {
 					log.Printf("[ERROR] Invalid Peer ID: %v", err)
 					s.Write([]byte("invalid peer id"))
 					return
 				}
 
-
-				relayBaseAddr, err := ma.NewMultiaddr("/p2p/" + relayID.String())
+				relayBaseAddr, err := ma.NewMultiaddr("/p2p/" + RelayHost.ID().String())
 				if err != nil {
 					log.Fatal("relayBaseAddr error:", err)
 				}
@@ -421,6 +411,7 @@ func handleChatStream(s network.Stream) {
 				targetAddr, _ := ma.NewMultiaddr("/p2p/" + targetID.String())
 				fullAddr := relayBaseAddr.Encapsulate(circuitAddr).Encapsulate(targetAddr)
 				fmt.Println("[DEBUG]", fullAddr.String())
+
 				addrInfo, err := peer.AddrInfoFromP2pAddr(fullAddr)
 				if err != nil {
 					log.Printf("Invalid relayed multiaddr: %s", fullAddr)
@@ -428,7 +419,6 @@ func handleChatStream(s network.Stream) {
 					return
 				}
 
-				// Add the relayed address to the peerstore. PeerStore is a mapping in which peer ID is mapped to multiaddr for that peer. This is used whenever we want to open a stream. Once added then we should connect to the peer and open a stream to send message to the relay
 				RelayHost.Peerstore().AddAddrs(addrInfo.ID, addrInfo.Addrs, peerstore.PermanentAddrTTL)
 
 				err = RelayHost.Connect(context.Background(), *addrInfo)
@@ -438,52 +428,40 @@ func handleChatStream(s network.Stream) {
 
 				sendStream, err := RelayHost.NewStream(context.Background(), targetID, ChatProtocol)
 				if err != nil {
-					fmt.Println("[DEBUG]Error opening stream to target peer")
-					fmt.Println(err)
+					fmt.Println("[DEBUG]Error opening stream to target peer", err)
 					s.Write([]byte("failed"))
 					return
 				}
-				jsonReqServer, err := json.Marshal(req)
-				if err != nil {
-					fmt.Println("[DEBUG]Error marshalling the req for server ")
-				}
-				_, err = sendStream.Write(append(jsonReqServer, '\n'))
+				defer sendStream.Close()
 
-				if err != nil {
-					fmt.Println("[DEBUG]Error sending messgae despite stream opened")
+				// Use an encoder to write the JSON object to the target peer
+				encoder := json.NewEncoder(sendStream)
+				if err := encoder.Encode(req); err != nil {
+					fmt.Println("[DEBUG]Error sending message despite stream opened:", err)
 					return
 				}
-				//s.Write([]byte("Success\n"))
 
-				buf := make([]byte, 64*1024)
-				RespReader := bufio.NewReader(sendStream)
-				RespReader.Read(buf)
-				buf = bytes.TrimRight(buf, "\x00")
-				var resp respFormat
-				resp.Type = "GET"
-				resp.Resp = buf
-				fmt.Printf("[Debug]Resp from %s : %+v \n", targetID.String(), resp)
+				// Read the response back from the target using a decoder
+				var respBody json.RawMessage
+				respDecoder := json.NewDecoder(sendStream)
+				if err := respDecoder.Decode(&respBody); err != nil {
+					fmt.Println("[DEBUG]Error reading response from target peer:", err)
+					return
+				}
 
-				jsonResp, err := json.Marshal(resp)
+				fmt.Printf("[Debug]Resp from %s : %s \n", targetID.String(), string(respBody))
+				fmt.Println("[DEBUG]Raw Resp :", string(respBody))
+
+				_, err = s.Write(respBody)
 				if err != nil {
-					fmt.Println("[DEBUG]Error marshalling the response at relay")
+					fmt.Println("[DEBUG]Error sending response back:", err)
 				}
-				_ = jsonResp // if required whole jsonResp can be sent but it makes unmarhsalling the response harder for the client
-				fmt.Println("[DEBUG]Raw Resp :", string(resp.Resp))
-				_, err = s.Write(resp.Resp)
-				if err != nil {
-					fmt.Println("[DEBUG]Error sending response back")
-				}
-				defer s.Close()
-				defer sendStream.Close()
 			}
 		}
-
 		if req.Type == "forward" {
 			mu.RLock()
 			var targetPeerID string
-			if(contains(ConnectedPeers, req.PeerID)){
-
+			if contains(ConnectedPeers, req.PeerID) {
 				targetPeerID = req.PeerID
 			}
 			mu.RUnlock()
@@ -500,7 +478,6 @@ func handleChatStream(s network.Stream) {
 				return
 			}
 
-			// Build relayed addr
 			relayID := RelayHost.ID()
 			relayBaseAddr, _ := ma.NewMultiaddr("/p2p/" + relayID.String())
 			circuitAddr, _ := ma.NewMultiaddr("/p2p-circuit")
@@ -528,39 +505,27 @@ func handleChatStream(s network.Stream) {
 			}
 			defer sendStream.Close()
 
-			jsonReqServer, err := json.Marshal(req)
-			if err != nil {
-				fmt.Println("[DEBUG]Error marshalling the req for server ")
-			}
-			_, err = sendStream.Write(append(jsonReqServer, '\n'))
-
-			if err != nil {
-				fmt.Println("[DEBUG]Error sending message despite stream opened")
+			// Use an encoder to forward the request
+			encoder := json.NewEncoder(sendStream)
+			if err := encoder.Encode(req); err != nil {
+				fmt.Println("[DEBUG]Error sending message despite stream opened:", err)
 				return
 			}
-			//s.Write([]byte("Success\n"))
 
-			buf := make([]byte, 64*1024)
-			RespReader := bufio.NewReader(sendStream)
-			RespReader.Read(buf)
-			buf = bytes.TrimRight(buf, "\x00")
-			var resp respFormat
-			resp.Type = "GET"
-			resp.Resp = buf
-			fmt.Printf("[Debug]Resp from %s : %+v \n", targetID.String(), resp)
+			// Use a decoder to read the response
+			var respBody json.RawMessage
+			respDecoder := json.NewDecoder(sendStream)
+			if err := respDecoder.Decode(&respBody); err != nil {
+				fmt.Println("[DEBUG]Error reading forwarded response from target peer:", err)
+				return
+			}
+			fmt.Printf("[Debug]Resp from %s : %s \n", targetID.String(), string(respBody))
+			fmt.Println("[DEBUG]Raw Resp :", string(respBody))
 
-			jsonResp, err := json.Marshal(resp)
+			_, err = s.Write(respBody)
 			if err != nil {
-				fmt.Println("[DEBUG]Error marshalling the response at relay")
+				fmt.Println("[DEBUG]Error sending response back:", err)
 			}
-			_ = jsonResp // if required whole jsonResp can be sent but it makes unmarhsalling the response harder for the client
-			fmt.Println("[DEBUG]Raw Resp :", string(resp.Resp))
-			_, err = s.Write(resp.Resp)
-			if err != nil {
-				fmt.Println("[DEBUG]Error sending response back")
-			}
-			defer s.Close()
-			defer sendStream.Close()
 		}
 	}
 }
