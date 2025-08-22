@@ -262,8 +262,8 @@ func PingTargets(addresses []string, interval time.Duration) {
 				resp.Body.Close()
 
 				//Ping the js server
-
-				resp2,err := http.Get("https://libr-server.onrender.com/")
+				
+				resp2,err := http.Get(JS_ServerURL)
 				if err != nil {
 					log.Printf("[WARN] Failed to ping %s:","https://libr-server.onrender.com/")
 					continue
