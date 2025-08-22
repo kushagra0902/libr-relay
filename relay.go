@@ -29,7 +29,7 @@ import (
 	"net/http"
 
 	//"github.com/joho/godotenv"
-	"github.com/joho/godotenv"
+
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -116,7 +116,7 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 func main() {
 	fmt.Println("STARTING RELAY CODE")
-	godotenv.Load()
+	//godotenv.Load()
 	JS_API_key = os.Getenv("JS_API_key")
 	JS_ServerURL = os.Getenv("JS_ServerURL")
 	if JS_API_key == "" || JS_ServerURL == "" {
