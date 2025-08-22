@@ -117,7 +117,7 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 func main() {
 	fmt.Println("STARTING RELAY CODE")
 	//godotenv.Load()
-	JS_API_key = os.Getenv("JS_API_key")
+	JS_API_key = os.Getenv("JS_API_KEY")
 	JS_ServerURL = os.Getenv("JS_ServerURL")
 	if JS_API_key == "" || JS_ServerURL == "" {
 		fmt.Println("[DEBUG] Missing JS API key or server URL")
