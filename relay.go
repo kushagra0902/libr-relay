@@ -269,7 +269,7 @@ func PingTargets(addresses []string, interval time.Duration) {
 					continue
 				}
 				resp2.Body.Close()
-
+				fmt.Println("[INFO]Pinged JS server successfully")
 				log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
 			}
 			time.Sleep(interval)
