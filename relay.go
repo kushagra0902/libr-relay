@@ -202,6 +202,9 @@ func main() {
 
 	//go uploadRelayAddrToSheet(relayMultiaddrFull)
 
+	trial,_ := GetRelayAddrFromJSServer()
+	fmt.Println("Trial from js server is ", trial)
+
 	RelayHost.SetStreamHandler("/chat/1.0.0", handleChatStream)
 	go func() {
 		for {
@@ -355,11 +358,11 @@ func handleChatStream(s network.Stream) {
 				targetRelayAddr := GetRelayAddr(req.PeerID)
 				if targetRelayAddr == "" {
 					fmt.Println("Can't get relay addr from mongoDB")
-					s.Write([]byte("[DEBUG]Can't get Relay addresses from database, retry again"))
+					s.Write([]byte("[ERROR]Can't get Relay addresses from database, retry again")) // this should be error message
 					return
 				}
 				if targetRelayAddr == OwnRelayAddrFull {
-					s.Write([]byte("[DEBUG]Target Peer not in network"))
+					s.Write([]byte("[ERROR]Target Peer not in network"))
 					return
 				}
 				var forwardReq reqFormat
@@ -425,7 +428,7 @@ func handleChatStream(s network.Stream) {
 				targetID, err := peer.Decode(targetPeerID)
 				if err != nil {
 					log.Printf("[ERROR] Invalid Peer ID: %v", err)
-					s.Write([]byte("invalid peer id"))
+					s.Write([]byte("[ERROR]invalid peer id"))
 					return
 				}
 
@@ -455,7 +458,7 @@ func handleChatStream(s network.Stream) {
 				sendStream, err := RelayHost.NewStream(context.Background(), targetID, ChatProtocol)
 				if err != nil {
 					fmt.Println("[DEBUG]Error opening stream to target peer", err)
-					s.Write([]byte("failed"))
+					s.Write([]byte("[ERROR]failed"))
 					return
 				}
 				defer sendStream.Close()
@@ -492,7 +495,7 @@ func handleChatStream(s network.Stream) {
 
 			if targetPeerID == "" {
 				fmt.Println("[DEBUG] Target peer not found in this relay")
-				s.Write([]byte("Target peer not found"))
+				s.Write([]byte("[ERROR]Target peer not found"))
 				return
 			}
 
@@ -725,43 +728,49 @@ func ConnectJSServer() error {
 	return nil
 }
 
-type ResponsePayload struct {
-	BootList []Relay `json:"boot_list"`
-}
 
 type Relay struct {
-	Address string `json:"address"`
+    Address string `json:"address"`
+}
+
+type RelayList struct {
+    RelayList []Relay `json:"relaylist"`
+}
+
+type ResponsePayload struct {
+    RelayList RelayList `json:"relay_list"`
 }
 
 func GetRelayAddrFromJSServer() ([]string, error) {
-	req, err := http.NewRequest("GET", JS_ServerURL+"/api/getrelay", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+    req, err := http.NewRequest("GET", JS_ServerURL+"/api/getrelay", nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create request: %w", err)
+    }
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
+    client := &http.Client{Timeout: 10 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("failed to send request: %w", err)
+    }
+    defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned non-200 status code: %d", resp.StatusCode)
-	}
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("server returned non-200 status code: %d", resp.StatusCode)
+    }
 
-	var payload ResponsePayload
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON response: %w", err)
-	}
+    var payload ResponsePayload
+    if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+        return nil, fmt.Errorf("failed to decode JSON response: %w", err)
+    }
 
-	var addresses []string
-	for _, relay := range payload.BootList {
-		addresses = append(addresses, relay.Address)
-	}
+    var addresses []string
+    for _, relay := range payload.RelayList.RelayList {
+        addresses = append(addresses, relay.Address)
+    }
 
-	return addresses, nil
+    return addresses, nil
 }
+
 
 func deleteFromJSServer() error {
 	fmt.Print("qwertyuiop\n")
