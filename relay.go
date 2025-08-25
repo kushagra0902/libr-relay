@@ -43,8 +43,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
-
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type RelayDist struct {
@@ -78,16 +76,16 @@ var (
 
 var RelayHost host.Host
 
-var (
-	MongoClient *mongo.Client
-	ctx         context.Context
-	cancel      context.CancelFunc
-)
+// var (
+// 	MongoClient *mongo.Client
+// 	ctx         context.Context
+// 	cancel      context.CancelFunc
+// )
 
-type respFormat struct {
-	Type string `json:"type"`
-	Resp []byte `json:"resp"`
-}
+// type respFormat struct {
+// 	Type string `json:"type"`
+// 	Resp []byte `json:"resp"`
+// }
 
 type RelayEvents struct{}
 
@@ -116,6 +114,10 @@ func (re *RelayEvents) Disconnected(net network.Network, conn network.Conn) {
 
 func main() {
 	fmt.Println("STARTING RELAY CODE")
+	
+	defer fmt.Println("[INFO] Shutting down relay...")
+	defer deleteFromJSServer()
+
 	//godotenv.Load()
 	JS_API_key = os.Getenv("JS_API_KEY")
 	JS_ServerURL = os.Getenv("JS_ServerURL")
@@ -209,14 +211,12 @@ func main() {
 	}()
 
 	addr, _ := GetRelayAddrFromJSServer()
-	go PingTargets(addr, 5*time.Minute)
+	go PingTargets(addr, 5*time.Minute,":https://libr-server.onrender.com")
 
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
-	deleteFromJSServer()
-	fmt.Println("[INFO] Shutting down relay...")
 }
 func remove(Lists *[]string, val string) {
 	for i, item := range *Lists {
@@ -227,9 +227,8 @@ func remove(Lists *[]string, val string) {
 	}
 }
 
-func PingTargets(addresses []string, interval time.Duration) {
+func PingTargets(addresses []string, interval time.Duration, JS_ServerURL string) {
 	go func() {
-
 		for {
 			for _, multiAddrStr := range addresses {
 				// Parse the multiaddress string
@@ -242,7 +241,6 @@ func PingTargets(addresses []string, interval time.Duration) {
 				// Extract the domain name
 				host, err := maddr.ValueForProtocol(ma.P_DNS4)
 				if err != nil {
-					// Fallback for P_DNS6 or other domain protocols if needed
 					host, err = maddr.ValueForProtocol(ma.P_DNS6)
 					if err != nil {
 						log.Printf("[WARN] Could not extract host from multiaddress %s: %v\n", multiAddrStr, err)
@@ -260,22 +258,23 @@ func PingTargets(addresses []string, interval time.Duration) {
 					continue
 				}
 				resp.Body.Close()
+				log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
 
-				//Ping the js server
-				
-				resp2,err := http.Get(JS_ServerURL)
+				// Ping the JS server
+				log.Println("[DEBUG] About to ping JS server...")
+				resp2, err := http.Get(JS_ServerURL)
 				if err != nil {
-					log.Printf("[WARN] Failed to ping %s:","https://libr-server.onrender.com/")
+					log.Printf("[WARN] Failed to ping JS server %s: %v\n", JS_ServerURL, err)
 					continue
 				}
 				resp2.Body.Close()
-				fmt.Println("[INFO]Pinged JS server successfully")
-				log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
+				log.Println("[INFO] Pinged JS server successfully")
 			}
 			time.Sleep(interval)
 		}
 	}()
 }
+
 
 func contains(arr []string, target string) bool {
 	for _, vals := range arr {
@@ -761,6 +760,8 @@ func GetRelayAddrFromJSServer() ([]string, error) {
 }
 
 func deleteFromJSServer() error {
+	fmt.Print("qwertyuiop\n")
+	defer fmt.Printf("Successfully deleted relay")
 	deleteData := map[string]string{
 		"address": OwnRelayAddrFull,
 	}
@@ -789,7 +790,6 @@ func deleteFromJSServer() error {
 		return fmt.Errorf("server returned non-200 status code: %d", resp.StatusCode)
 	}
 
-	fmt.Printf("Successfully deleted relay")
 	return nil
 }
 
