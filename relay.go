@@ -230,6 +230,13 @@ func remove(Lists *[]string, val string) {
 func PingTargets(addresses []string, interval time.Duration, JS_ServerURL string) {
        for {
 	       log.Println("[DEBUG] PingTargets running...")
+		   resp2, err := http.Get(JS_ServerURL)
+		       if err != nil {
+			       log.Printf("[WARN] Failed to ping JS server %s: %v\n", JS_ServerURL, err)
+			       continue
+		       }
+		       resp2.Body.Close()
+		       log.Println("[INFO] Pinged JS server successfully")
 	       for _, multiAddrStr := range addresses {
 		       // Parse the multiaddress string
 		       maddr, err := ma.NewMultiaddr(multiAddrStr)
@@ -263,13 +270,7 @@ func PingTargets(addresses []string, interval time.Duration, JS_ServerURL string
 
 		       // Ping the JS server
 		       log.Printf("[DEBUG] About to ping JS server at %s...", JS_ServerURL)
-		       resp2, err := http.Get(JS_ServerURL)
-		       if err != nil {
-			       log.Printf("[WARN] Failed to ping JS server %s: %v\n", JS_ServerURL, err)
-			       continue
-		       }
-		       resp2.Body.Close()
-		       log.Println("[INFO] Pinged JS server successfully")
+		       
 	       }
 	       time.Sleep(interval)
        }
