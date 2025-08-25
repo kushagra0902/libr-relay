@@ -587,7 +587,10 @@ func GetRelayAddr(peerID string) string {
 	sort.Slice(distmap, func(i, j int) bool {
 		return distmap[i].dist.Cmp(distmap[j].dist) < 0
 	})
-
+	if(len(distmap)==0){
+		fmt.Println("NO RELAYS FOUND TO CONTACT FOR FORWARDING. CHECK IF PEER EXISTS IN NETWORK")
+		return ""
+	}
 	relayIDused := distmap[0].relayID
 
 	var relayAddr string
