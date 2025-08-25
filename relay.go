@@ -166,7 +166,7 @@ func main() {
 
 	RelayHost.Network().Notify(&RelayEvents{})
 
-	OwnRelayAddrFull = fmt.Sprintf("/dns4/libr-relay-y7ib.onrender.com/tcp/443/wss/p2p/%s", RelayHost.ID().String())
+	OwnRelayAddrFull = fmt.Sprintf("/dns4/libr-q0ok.onrender.com//tcp/443/wss/p2p/%s", RelayHost.ID().String())
 	err = ConnectJSServer()
 	if err != nil {
 		fmt.Printf("[DEBUG] Error connecting to JS server: %s\n", err)
