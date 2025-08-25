@@ -211,7 +211,7 @@ func main() {
 	}()
 
 	addr, _ := GetRelayAddrFromJSServer()
-	go PingTargets(addr, 5*time.Minute,":https://libr-server.onrender.com")
+	go PingTargets(addr, 5*time.Minute, JS_ServerURL)
 
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
@@ -228,51 +228,51 @@ func remove(Lists *[]string, val string) {
 }
 
 func PingTargets(addresses []string, interval time.Duration, JS_ServerURL string) {
-	go func() {
-		for {
-			for _, multiAddrStr := range addresses {
-				// Parse the multiaddress string
-				maddr, err := ma.NewMultiaddr(multiAddrStr)
-				if err != nil {
-					log.Printf("[WARN] Could not parse multiaddress %s: %v\n", multiAddrStr, err)
-					continue
-				}
+       for {
+	       log.Println("[DEBUG] PingTargets running...")
+	       for _, multiAddrStr := range addresses {
+		       // Parse the multiaddress string
+		       maddr, err := ma.NewMultiaddr(multiAddrStr)
+		       if err != nil {
+			       log.Printf("[WARN] Could not parse multiaddress %s: %v\n", multiAddrStr, err)
+			       continue
+		       }
 
-				// Extract the domain name
-				host, err := maddr.ValueForProtocol(ma.P_DNS4)
-				if err != nil {
-					host, err = maddr.ValueForProtocol(ma.P_DNS6)
-					if err != nil {
-						log.Printf("[WARN] Could not extract host from multiaddress %s: %v\n", multiAddrStr, err)
-						continue
-					}
-				}
+		       // Extract the domain name
+		       host, err := maddr.ValueForProtocol(ma.P_DNS4)
+		       if err != nil {
+			       host, err = maddr.ValueForProtocol(ma.P_DNS6)
+			       if err != nil {
+				       log.Printf("[WARN] Could not extract host from multiaddress %s: %v\n", multiAddrStr, err)
+				       continue
+			       }
+		       }
 
-				// Construct the final HTTP URL for the health check
-				pingURL := fmt.Sprintf("https://%s/check", host)
+		       // Construct the final HTTP URL for the health check
+		       pingURL := fmt.Sprintf("https://%s/check", host)
 
-				// Ping the valid URL
-				resp, err := http.Get(pingURL)
-				if err != nil {
-					log.Printf("[WARN] Failed to ping %s: %v\n", pingURL, err)
-					continue
-				}
-				resp.Body.Close()
-				log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
+		       // Ping the valid URL
+		       log.Printf("[DEBUG] Pinging %s", pingURL)
+		       resp, err := http.Get(pingURL)
+		       if err != nil {
+			       log.Printf("[WARN] Failed to ping %s: %v\n", pingURL, err)
+			       continue
+		       }
+		       resp.Body.Close()
+		       log.Printf("[INFO] Pinged %s — Status: %s\n", pingURL, resp.Status)
 
-				// Ping the JS server
-				log.Println("[DEBUG] About to ping JS server...")
-				resp2, err := http.Get(JS_ServerURL)
-				if err != nil {
-					log.Printf("[WARN] Failed to ping JS server %s: %v\n", JS_ServerURL, err)
-					continue
-				}
-				resp2.Body.Close()
-				log.Println("[INFO] Pinged JS server successfully")
-			}
-			time.Sleep(interval)
-		}
-	}()
+		       // Ping the JS server
+		       log.Printf("[DEBUG] About to ping JS server at %s...", JS_ServerURL)
+		       resp2, err := http.Get(JS_ServerURL)
+		       if err != nil {
+			       log.Printf("[WARN] Failed to ping JS server %s: %v\n", JS_ServerURL, err)
+			       continue
+		       }
+		       resp2.Body.Close()
+		       log.Println("[INFO] Pinged JS server successfully")
+	       }
+	       time.Sleep(interval)
+       }
 }
 
 
