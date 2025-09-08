@@ -119,7 +119,7 @@ func main() {
 	defer fmt.Println("[INFO] Shutting down relay...")
 	defer deleteFromJSServer()
 
-	godotenv.Load()
+	//godotenv.Load()
 	JS_API_key = os.Getenv("JS_API_KEY")
 	JS_ServerURL = os.Getenv("JS_ServerURL")
 	if JS_API_key == "" || JS_ServerURL == "" {
