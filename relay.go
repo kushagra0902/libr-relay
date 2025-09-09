@@ -30,7 +30,8 @@ import (
 
 	//"github.com/joho/godotenv"
 
-	"github.com/joho/godotenv"
+	//"github.com/joho/godotenv"
+
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -122,6 +123,10 @@ func main() {
 	//godotenv.Load()
 	JS_API_key = os.Getenv("JS_API_KEY")
 	JS_ServerURL = os.Getenv("JS_ServerURL")
+	port:=os.Getenv("PORT")
+	if port==""{
+		port="443"
+	}
 	if JS_API_key == "" || JS_ServerURL == "" {
 		fmt.Println("[DEBUG] Missing JS API key or server URL")
 		return
@@ -144,7 +149,7 @@ func main() {
 	RelayHost, err = libp2p.New(
 		libp2p.Identity(privKey),
 
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/443/ws"),
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/%s/ws", port),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.ConnectionManager(connMgr),
 		libp2p.EnableNATService(),
