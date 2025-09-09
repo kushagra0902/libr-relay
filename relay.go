@@ -30,6 +30,7 @@ import (
 
 	//"github.com/joho/godotenv"
 
+	"github.com/joho/godotenv"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -209,13 +210,13 @@ func main() {
 	go func() {
 		for {
 			fmt.Println(ConnectedPeers)
-			time.Sleep(5 * time.Second)
+			time.Sleep(5 * time.Minute)
 		}
 	}()
 
 	addr, _ := GetRelayAddrFromJSServer()
 	go PingTargets(addr, 5*time.Minute, JS_ServerURL)
-
+	go KeepAlive()
 	fmt.Println("[DEBUG] Waiting for interrupt signal...")
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -804,6 +805,38 @@ func deleteFromJSServer() error {
 	}
 
 	return nil
+}
+
+func KeepAlive() {
+	for {
+		fmt.Println("[DEBUG] Sending keepalive messages to connected peers...")
+		mu.RLock()
+		peers := make([]string, len(ConnectedPeers))
+		copy(peers, ConnectedPeers)
+		mu.RUnlock()
+		for _, pid := range peers {
+			targetID, err := peer.Decode(pid)
+			if err != nil {
+				log.Printf("[KeepAlive] Invalid Peer ID: %v", err)
+				continue
+			}
+			stream, err := RelayHost.NewStream(context.Background(), targetID, ChatProtocol)
+			if err != nil {
+				log.Printf("[KeepAlive] Failed to open stream to %s: %v", pid, err)
+				continue
+			}
+			encoder := json.NewEncoder(stream)
+			keepAliveMsg := reqFormat{
+				Type:   "keepalive",
+				PeerID: pid,
+			}
+			if err := encoder.Encode(keepAliveMsg); err != nil {
+				log.Printf("[KeepAlive] Failed to send keepalive to %s: %v", pid, err)
+			}
+			stream.Close()
+		}
+		time.Sleep(10 * time.Minute) // interval between keep alive messages
+	}
 }
 
 // func GetRelayAddrFromMongo() ([]string, error) {
